@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+    <head>
+        <title>TrocadorDeFundo</title>
+        <meta name="author" content="@dgcass">
+        <style>
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400&display=swap");
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Poppins;
+    background: #FF55A3;
+    transition: 0.3s;
+}
+.dgcss-menu {
+    width: 100%;
+    background: rgba(240, 240, 255, 0.4);
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    color: white;
+    z-index: 99999;
+    display: flex;
+    gap: 50px;
+    text-align: center;
+    justify-content: space-around;
+}
+.dgcss-menu div button {
+    padding: 6px;
+    background: transparent;
+    border: 1px solid white;
+    margin: 17px 0px 0px 35px;
+    color: white;
+    font-family: Poppins;
+}
+button:hover {
+    transform: scale(1.05);
+}
+button {
+    transition: 0.3s;
+    border-radius:3px;
+}
+.dgcss-bolhas {
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+}
+.dgcss-bolhas > * {
+    width: 200px; height: 100px;
+    position: absolute;
+    animation: scala 5s ease-in-out infinite;
+}
+@keyframes scala {
+    50%{ transform: scale(2); }
+}
+#dgcss-cor-azul {
+    background: blue;
+    top: 90%;
+    height: 10vh;
+    transition: 0.3s;
+    animation-delay: 1s;
+}
+#dgcss-cor-verde {
+    background: #52fe99;
+    width: 50%;
+    height: 20%;
+    top: 40%;
+    left: 50%;
+    animation-delay: 2s;
+    transition: 0.3s;
+}
+#dgcss-cor-amarelo {
+    background: orange;
+    transition: 0.3s;
+    animation-delay: 3s;
+}
+.dgcss-conteudo {
+    left: 0px;
+    position: fixed;
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(50px);
+    color: white;
+}
+        </style>
+        <script>
+const $ = id => document.getElementById(id);
+var check = true;
+function dg_trocar(){
+    var body = $("body");
+    var amarelo = $("dgcss-cor-amarelo");
+    var azul = $("dgcss-cor-azul");
+    var verde = $("dgcss-cor-verde");
+    var tema = $("tema");
+    if(check) {
+        body.style.background ="rgb(50 50 90)";
+        amarelo.style.background ="#d19f15";
+        azul.style.background ="#6c0296";
+        verde.style.background ="#2269ab";
+        tema.style.background ="white";
+        tema.style.color ="rgb(40 40 100)";
+        tema.innerHTML ="Escuro";
+        check = !check;
+    } else {
+        body.style.background ="#FF55A3";
+        amarelo.style.background ="orange";
+        azul.style.background ="blue";
+        verde.style.background ="#52fe99";
+        tema.style.background ="transparent";
+        tema.innerHTML ="Claro";
+        tema.style.color ="white";
+        check = !check;
+    }
+}
+        </script>
+    </head>
+    <body id="body">
+    <div class="dgcss-menu">
+        <div><h3>COR DE FUNDO</h3></div>
+        <div>
+        <button onclick="dg_trocar()" id="tema">
+                Claro
+        </button>
+        </div>
+    </div>
+    <div class="dgcss-bolhas">
+        <div id="dgcss-cor-azul"></div>
+        <div id="dgcss-cor-verde"></div>
+        <div id="dgcss-cor-amarelo"></div>
+    </div>
+    <div class="dgcss-conteudo"></div>
+    </body>
+</html>
