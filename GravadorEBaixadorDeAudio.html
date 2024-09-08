@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="author" content="Diogo">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title > Gravar Audio </title>
+    <style>
+        body { text-align: center; }
+    </style>
+</head>
+<body>
+    <center><br><br><br><br>
+    <div id="aud-recorder">
+        <button id="start" onclick="startRecording('aud', this, document.getElementById('stop'))">
+            Começar gravação
+        </button>
+        <button id="stop" disabled onclick="stopRecording(this, document.getElementById('start'))">
+            Parar gravação
+        </button><br>
+    </div><br>
+    <script>
+document.addEventListener('DOMContentLoaded', () => {
+    let mediaRecorder;
+    let recordedChunks = [];
+    let constraints;
+    function startRecording(mediaType, startButton, stopButton) {
+        navigator.mediaDevices.getUserMedia({ 
+            audio: mediaType = 'aud'
+        }).then(stream => {
+            const mimeType = 'audio/webm';
+            mediaRecorder = new MediaRecorder(stream, {mimeType});
+            mediaRecorder.ondataavailable = (event) => {
+                    recordedChunks.push(event.data);
+            };
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+                const url = URL.createObjectURL(blob);
+                const downloadLink = document.createElement('a');
+                downloadLink.href = url;
+                downloadLink.download = 'audioGravado.webm';
+                downloadLink.textContent = 'Baixar Gravação De Audio!';
+                document.body.appendChild(downloadLink);
+                recordedChunks = [];
+            };
+            mediaRecorder.start();
+            startButton.disabled = true;
+            stopButton.disabled = false;
+        })
+      }
+    function stopRecording(stopButton, startButton) {
+        mediaRecorder.stop();
+        stopButton.disabled = true;
+        startButton.disabled = false;
+    }
+    window.startRecording = startRecording;
+    window.stopRecording = stopRecording;
+});
+    </script>
+    </center>
+</body>
+</html>
