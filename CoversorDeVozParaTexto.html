@@ -1,0 +1,46 @@
+<DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="author" content="Diogo">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">    
+    <title>ConversorDeVoz</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+    <div id="res"></div><br>
+        <button class="btn">
+            Transcrever
+        </button>
+    <script>        document.addEventListener('DOMContentLoaded',()=>{
+    const btn = document.querySelector('.btn');
+    const r = document.getElementById('res');
+    let recognition;
+    window.SpeechRecognition = window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    btn.addEventListener('click', () => {
+        recognition.start();
+    });
+    recognition.onresult = function(event) {
+        const transcript = event.results[0][0].transcript;
+        res.innerText += transcript + ' ';
+    };
+    recognition.onspeechend = function() {
+        recognition.stop();
+    };
+});
+    </script>
+</body>
+</html>
