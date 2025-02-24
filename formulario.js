@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const { name, lang } = data;
       
       alert(name)
+      showToast()
       
       form.reset();
     }
