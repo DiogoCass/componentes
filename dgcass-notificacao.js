@@ -1,5 +1,4 @@
 (() => {
-    const DOMString = `
 
     if(typeof notificar !== "undefined") {
         
@@ -53,5 +52,4 @@
     }
      createLinkElementAndAppendInHead('https://cdn.jsdelivr.net/npm/@sweetalert2/themes/default/default.css');
 createScriptElementAndAppendInHead('https://cdn.jsdelivr.net/npm/sweetalert2/dist/sweetalert2.min.js');
-    document.body.insertAdjacentHTML('afterbegin', DOMString)
 })();
