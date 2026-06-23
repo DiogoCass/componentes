@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Obsidian Grandmaster & Audio Suite</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-principal: #05070f;
+            --bg-card: rgba(10, 15, 30, 0.75);
+            --bg-tabuleiro: #090d16;
+            --casa-clara: #f1f5f9;
+            --casa-escura: #475569;
+            --selecionado: rgba(14, 165, 233, 0.3);
+            --borda-selecionado: #0ea5e9;
+            --movimento-valido: rgba(34, 197, 94, 0.25);
+            --borda-movimento: #22c55e;
+            --dica: rgba(168, 85, 247, 0.35);
+            --borda-dica: #a855f7;
+            --texto-claro: #f8fafc;
+            --texto-mutado: #94a3b8;
+            --destaque: #38bdf8;
+            --blitz-cor: #f59e0b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #0f172a 0%, var(--bg-principal) 100%);
+            color: var(--texto-claro);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 68px 14px env(safe-area-inset-bottom, 8px) 14px;
+        }
+
+        /* ---------------------------------- */
+        /* PLAYER DE ÁUDIO COM BARRA NO TOPO  */
+        /* ---------------------------------- */
+        .top-audio-player {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 58px;
+            background: rgba(5, 7, 15, 0.9);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            z-index: 90;
+            padding: 0 16px;
+            display: none; 
+            grid-template-columns: 1fr auto;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .player-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .music-disc {
+            width: 34px; height: 34px;
+            background: linear-gradient(135deg, #6366f1 0%, #38bdf8 100%);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; color: #fff;
+            flex-shrink: 0;
+            animation: spin 6s linear infinite;
+            animation-play-state: paused;
+        }
+        .music-disc.playing { animation-play-state: running; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .meta-music { min-width: 0; }
+        .meta-music h4 { font-size: 12px; font-weight: 600; color: #fff; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+        .meta-music p { font-size: 10px; color: var(--texto-mutated); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+        .player-controls-wrapper { display: flex; align-items: center; gap: 12px; }
+        .controls-cluster { display: flex; align-items: center; gap: 6px; }
+        
+        .btn-audio-nav {
+            background: transparent; border: none; color: rgba(255,255,255,0.5);
+            font-size: 14px; padding: 6px; cursor: pointer; transition: color 0.2s;
+        }
+        .btn-audio-nav:hover { color: #fff; }
+
+        .btn-play-pause {
+            width: 32px; height: 32px; border-radius: 50%; border: none;
+            background: #fff; color: #000; font-size: 12px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+
+        /* PROGRESSO REALOCADO NO CABEÇALHO */
+        .progress-timeline {
+            position: absolute;
+            bottom: 0; left: 0; width: 100%;
+            height: 2px; background: rgba(255,255,255,0.1);
+            z-index: 95;
+        }
+        .progress-fill { height: 100%; width: 0%; background: var(--destaque); transition: width 0.1s linear; }
+
+        /* ---------------------------------- */
+        /* CORPO DA APLICAÇÃO (ANTI-SCROLL) */
+        /* ---------------------------------- */
+        .wrapper-app {
+            width: 100%;
+            max-width: 420px;
+            height: calc(100vh - 84px);
+            display: none;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        /* BANNER DE INFOS COMPACTO */
+        .system-banner-zone {
+            width: 100%; height: 42px;
+            position: relative; border-radius: 8px; overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.06); background: #090d16;
+            flex-shrink: 0;
+        }
+        .banner-img-cover { width: 100%; height: 100%; object-fit: cover; opacity: 0.4; filter: grayscale(30%); }
+        .banner-overlay-text {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: space-between; padding: 0 12px;
+        }
+        .banner-overlay-text h5 { font-size: 12px; font-weight: 500; letter-spacing: 0.5px; }
+        .banner-overlay-text span { font-size: 10px; color: var(--destaque); font-weight: 600; }
+
+        /* TABULEIRO DINÂMICO MAXIMIZADO */
+        .print-frame {
+            width: 100%;
+            display: flex; align-items: center; justify-content: center;
+            flex: 1; min-height: 0;
+        }
+        .board-container {
+            width: 100%; aspect-ratio: 1 / 1;
+            max-height: 100%; max-width: 100%;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #chess-board {
+            display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
+            width: 100%; height: 100%; border: 4px solid #090d16; border-radius: 8px;
+            overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+        }
+
+        .cell { display: flex; align-items: center; justify-content: center; font-size: 34px; cursor: pointer; user-select: none; position: relative; }
+        @media (max-width: 375px) { .cell { font-size: 28px; } }
+
+        .cell.light { background-color: var(--casa-clara); }
+        .cell.dark { background-color: var(--casa-escura); }
+        
+        .cell .white-piece {
+            color: #ffffff; font-weight: 700;
+            filter: drop-shadow(0px 2px 3px rgba(0, 0, 0, 0.75)) drop-shadow(0 0 1px rgba(255,255,255,0.8));
+            z-index: 3;
+        }
+        .cell .black-piece {
+            color: #0b0f19;
+            filter: drop-shadow(0px 1px 2px rgba(255, 255, 255, 0.5)) drop-shadow(0 0 1px #000);
+            z-index: 3;
+        }
+
+        .cell.selected { background-color: var(--selecionado) !important; box-shadow: inset 0 0 0 3px var(--borda-selecionado); z-index: 4; }
+        .cell.valid-move::after { content: ""; width: 12px; height: 12px; background-color: var(--borda-movimento); border-radius: 50%; position: absolute; z-index: 5; }
+        .cell.valid-move.has-piece { background-color: rgba(239, 68, 68, 0.25) !important; }
+        .cell.valid-move.has-piece::after { width: 70%; height: 70%; background: transparent; border: 2px dashed #ef4444; }
+        .cell.hint-cell { background-color: var(--dica) !important; box-shadow: inset 0 0 0 3px var(--borda-dica) !important; z-index: 5; }
+        
+        /* CORREÇÃO VISUAL PREMIUM DO COR MARROM */
+        .cell.last-move { 
+            background-color: rgba(56, 189, 248, 0.25) !important; 
+            box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.4);
+        }
+
+        /* PAINEL CONTROLADOR */
+        .panel-status {
+            background: var(--bg-card); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.06); padding: 12px; border-radius: 12px;
+            display: flex; flex-direction: column; gap: 10px; flex-shrink: 0;
+        }
+        .meta-grid { display: flex; justify-content: space-between; align-items: center; }
+        .clocks-display { display: none; justify-content: space-between; gap: 8px; width: 100%; }
+        .clock-box {
+            flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05);
+            padding: 6px; border-radius: 6px; text-align: center; font-size: 12px; font-weight: 700; color: #cbd5e1;
+        }
+        .clock-box.active { border-color: var(--blitz-cor); color: var(--blitz-cor); background: rgba(245, 158, 11, 0.05); }
+
+        .custom-select {
+            background: #0f172a; color: #fff; border: 1px solid rgba(255,255,255,0.12);
+            padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; outline: none;
+        }
+        
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .btn-action {
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #f1f5f9;
+            padding: 10px 8px; border-radius: 8px; font-size: 12px; font-weight: 600;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+            transition: background 0.2s;
+        }
+        .btn-action:active { background: rgba(255,255,255,0.1); }
+        .btn-prime { background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); border: none; font-weight: 700; }
+        .btn-danger { background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+        /* RODAPÉ E IMPORTAÇÃO */
+        .footer-controls-group {
+            display: flex; flex-direction: column; gap: 6px; align-items: center; justify-content: center;
+            padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.03); flex-shrink: 0;
+        }
+        .secondary-audio label { font-size: 11px; color: var(--texto-mutated); cursor: pointer; display: flex; align-items: center; gap: 4px; }
+        .secondary-audio label:active { color: var(--destaque); }
+        .signature { font-size: 9px; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: 0.8px; }
+        .signature a { color: var(--destaque); text-decoration: none; font-weight: 600; }
+
+        /* ---------------------------------- */
+        /* TELA DE ENTRADA EXCLUSIVA          */
+        /* ---------------------------------- */
+        #start-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle at top, #111827 0%, #03050a 100%);
+            display: flex; justify-content: center; align-items: center; z-index: 100;
+        }
+        .menu-card {
+            background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.08); padding: 36px 24px; border-radius: 24px;
+            text-align: center; width: 88%; max-width: 360px; box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+        }
+        .menu-card h1 { font-size: 34px; font-weight: 900; margin-bottom: 4px; letter-spacing: -0.5px; }
+        .menu-card h1 span { background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .menu-subtitle { color: var(--texto-mutado); font-size: 11px; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 24px; }
+        
+        .input-container-premium { position: relative; margin-bottom: 14px; width: 100%; }
+        .input-container-premium input {
+            width: 100%; background: rgba(5, 7, 15, 0.8); border: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 2px solid var(--destaque); padding: 14px 14px 14px 40px; border-radius: 12px;
+            color: #fff; font-size: 14px; outline: none; transition: border-color 0.2s;
+        }
+        .input-container-premium input:focus { border-color: #fff; }
+        .input-container-premium i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--destaque); font-size: 14px; opacity: 0.8; }
+        
+        #opponent-wrapper {
+            max-height: 0; overflow: hidden; transition: max-height 0.3s ease, margin-bottom 0.3s ease;
+        }
+        #opponent-wrapper.visible { max-height: 60px; margin-bottom: 14px; }
+
+        .select-mode-initial {
+            width: 100%; background: rgba(5, 7, 15, 0.8); color: #fff; border: 1px solid rgba(255,255,255,0.1);
+            padding: 12px; border-radius: 12px; font-size: 13px; outline: none; margin-bottom: 20px;
+        }
+
+        #play-btn {
+            width: 100%; background: linear-gradient(135deg, #0ea5e9 0%, #4f46e5 100%);
+            border: none; color: white; padding: 15px; font-size: 13px; font-weight: 700;
+            border-radius: 12px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
+        }
+        #play-btn:active { transform: scale(0.98); }
+
+        /* MODO PRINT CLEAN FIX */
+        body.print-mode-active { padding: 0 !important; justify-content: center !important; background: #020408 !important; }
+        body.print-mode-active .top-audio-player,
+        body.print-mode-active .system-banner-zone,
+        body.print-mode-active .panel-status,
+        body.print-mode-active .footer-controls-group { display: none !important; }
+        body.print-mode-active .wrapper-app { height: 100vh !important; max-width: 100vw !important; justify-content: center !important; gap: 0 !important; }
+        body.print-mode-active .print-frame { padding: 24px; width: 100vw; height: 100vh; background: linear-gradient(135deg, #0f172a 0%, #03050a 100%); }
+        
+        #exit-print-btn { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 300; display: none; width: 80%; max-width: 280px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); }
+        body.print-mode-active #exit-print-btn { display: flex; }
+
+        #game-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(3, 5, 8, 0.9); z-index: 200; display: none; flex-direction: column; justify-content: center; align-items: center; }
+        .modal-result { text-align: center; padding: 28px 24px; border-radius: 20px; max-width: 320px; width: 90%; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); }
+        .modal-result.win { border-color: #22c55e; color: #4ade80; }
+        .modal-result.lose { border-color: #ef4444; color: #f87171; }
+    </style>
+</head>
+<body>
+
+<!-- TIMELINE DE ÁUDIO NO TOPO -->
+<div class="top-audio-player" id="global-player">
+    <div class="player-left">
+        <div class="music-disc" id="player-disc"><i class="fa-solid fa-music"></i></div>
+        <div class="meta-music">
+            <h4 id="ui-track-title">The World We Knew</h4>
+            <p id="ui-track-artist">Frank Sinatra Cover</p>
+        </div>
+    </div>
+    <div class="player-controls-wrapper">
+        <div class="controls-cluster">
+            <button class="btn-audio-nav" id="ui-prev"><i class="fa-solid fa-backward-step"></i></button>
+            <button class="btn-play-pause" id="ui-play-pause"><i class="fa-solid fa-pause"></i></button>
+            <button class="btn-audio-nav" id="ui-next"><i class="fa-solid fa-forward-step"></i></button>
+        </div>
+    </div>
+    <div class="progress-timeline"><div class="progress-fill" id="audio-progress-fill"></div></div>
+</div>
+
+<!-- TELA DE ENTRADA INTELIGENTE -->
+<div id="start-screen">
+    <div class="menu-card">
+        <h1>♚ <span>Obsidian</span> ♔</h1>
+        <div class="menu-subtitle">Grandmaster Engine</div>
+        
+        <select id="initial-mode-select" class="select-mode-initial">
+            <option value="ai">IA Engine (Impossível)</option>
+            <option value="blitz">Modo Blitz (5 min)</option>
+            <option value="pvp">Versus Local (Dois Jogadores)</option>
+        </select>
+
+        <div class="input-container-premium">
+            <input type="text" id="player-name-input" placeholder="Nome do Jogador 1..." maxlength="14" autocomplete="off">
+            <i class="fa-solid fa-user-shield"></i>
+        </div>
+
+        <div class="input-container-premium" id="opponent-wrapper">
+            <input type="text" id="opponent-name-input" placeholder="Nome do Jogador 2..." maxlength="14" autocomplete="off">
+            <i class="fa-solid fa-user-friends"></i>
+        </div>
+
+        <button id="play-btn">Iniciar Aplicação</button>
+    </div>
+</div>
+
+<!-- RESULTADO OVERLAY -->
+<div id="game-overlay">
+    <div id="result-box" class="modal-result">
+        <h2 id="result-title" style="font-size: 22px; margin-bottom: 8px;"></h2>
+        <p id="result-desc" style="font-size: 13px; margin-bottom: 20px; color: var(--texto-mutado);"></p>
+        <button class="btn-action btn-prime" id="close-overlay-btn" style="width:100%"><i class="fa-solid fa-rotate-right"></i> Jogar Novamente</button>
+    </div>
+</div>
+
+<button id="exit-print-btn" class="btn-action btn-prime"><i class="fa-solid fa-eye-slash"></i> Voltar ao Jogo</button>
+
+<!-- MAIN APPLICATION WRAPPER -->
+<div class="wrapper-app" id="app-container">
+    <div class="system-banner-zone">
+        <img src="https://images.unsplash.com/photo-1529699211952-734e80c4d42b?q=80&w=600&auto=format&fit=crop" class="banner-img-cover" alt="System Art Cover">
+        <div class="banner-overlay-text">
+            <h5>Obsidian Suite v2.5</h5>
+            <span><i class="fa-solid fa-shield-halved"></i> Engine Ativa</span>
+        </div>
+    </div>
+
+    <div class="print-frame">
+        <div class="board-container">
+            <div id="chess-board"></div>
+        </div>
+    </div>
+
+    <div class="panel-status">
+        <div class="meta-grid">
+            <select id="game-mode" class="custom-select">
+                <option value="ai">IA Engine (Impossível)</option>
+                <option value="blitz">Modo Blitz (5 min)</option>
+                <option value="pvp">Versus Local</option>
+            </select>
+            <span id="turn-indicator" style="font-size: 13px; font-weight: 700; color: var(--destaque);"><i class="fa-solid fa-circle-dot"></i> Brancas</span>
+        </div>
+
+        <div class="clocks-display" id="blitz-clocks">
+            <div class="clock-box" id="clock-white">Brancas: 05:00</div>
+            <div class="clock-box" id="clock-black">Engine: 05:00</div>
+        </div>
+
+        <div id="message" style="text-align:center; font-size: 11px; min-height: 12px; color: #f87171; font-weight: 600;"></div>
+
+        <div class="btn-grid">
+            <button id="hint-btn" class="btn-action"><i class="fa-solid fa-lightbulb"></i> Dica</button>
+            <button id="reset-btn" class="btn-action"><i class="fa-solid fa-arrow-rotate-left"></i> Reiniciar</button>
+            <button id="print-mode-btn" class="btn-action btn-prime"><i class="fa-solid fa-camera"></i> Modo Print</button>
+            <button id="exit-app-btn" class="btn-action btn-danger"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
+        </div>
+    </div>
+
+    <div class="footer-controls-group">
+        <div class="secondary-audio">
+            <label for="audio-upload"><i class="fa-solid fa-folder-open"></i> Importar faixas locais secundárias</label>
+            <input type="file" id="audio-upload" accept="audio/*" multiple style="display:none;">
+        </div>
+        <div class="signature">Designed & Engineered by <a href="https://wa.me/555196748252" target="_blank">Diogo C Cass</a></div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const playlist = [
+            {
+                title: "The World We Knew (Over and Over)",
+                artist: "Frank Sinatra (Ben Noynay Cover)",
+                src: "https://www.dropbox.com/scl/fi/3lq7iv6pn8dyj223rb5vb/the_world_we_knew_over_and_over_by_frank_sinatra_vocal_cover_by_ben_noynay_mp3_7414.mp3?rlkey=c97cbvffhcn4plthvjvbruhtl&st=mwhae1m3&dl=1"
+            },
+            {
+                title: "My Way",
+                artist: "Frank Sinatra (Instrumental)",
+                src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+            }
+        ];
+        
+        let currentTrackIndex = 0;
+        let playerName = "Brancas";
+        let opponentName = "Pretas";
+        let gameMode = 'ai';
+        let turn = 'white';
+        let gameOver = false;
+        let board = [];
+        let selected = null;
+        let validMoves = [];
+        let lastMoveTracker = null;
+        let activeHint = null;
+        let timerWhite = 300, timerBlack = 300, clockInterval = null;
+
+        const boardEl = document.getElementById('chess-board');
+        const turnIndicator = document.getElementById('turn-indicator');
+        const messageEl = document.getElementById('message');
+        const modeSelect = document.getElementById('game-mode');
+        const initialModeSelect = document.getElementById('initial-mode-select');
+        const opponentWrapper = document.getElementById('opponent-wrapper');
+        const blitzClocksEl = document.getElementById('blitz-clocks');
+        
+        const audioPlayer = new Audio();
+        audioPlayer.volume = 0.5;
+
+        const uiPlayPause = document.getElementById('ui-play-pause');
+        const uiProgressFill = document.getElementById('audio-progress-fill');
+        const uiDisc = document.getElementById('player-disc');
+        const uiTitle = document.getElementById('ui-track-title');
+        const uiArtist = document.getElementById('ui-track-artist');
+
+        // Alternância do input de oponente conforme o modo na tela inicial
+        initialModeSelect.addEventListener('change', (e) => {
+            if(e.target.value === 'pvp') {
+                opponentWrapper.classList.add('visible');
+            } else {
+                opponentWrapper.classList.remove('visible');
+            }
+            modeSelect.value = e.target.value;
+            gameMode = e.target.value;
+        });
+
+        modeSelect.addEventListener('change', (e) => {
+            gameMode = e.target.value;
+            if(gameMode !== 'pvp') opponentName = "Engine IA";
+            resetGame();
+        });
+
+        function loadTrack(index) {
+            currentTrackIndex = index;
+            const track = playlist[currentTrackIndex];
+            audioPlayer.src = track.src;
+            uiTitle.textContent = track.title;
+            uiArtist.textContent = track.artist;
+            audioPlayer.loop = (index === 0);
+        }
+
+        function initAudioControls() {
+            audioPlayer.play().then(() => {
+                uiDisc.classList.add('playing');
+                uiPlayPause.innerHTML = '<i class="fa-solid fa-pause"></i>';
+            }).catch(() => console.log("Aguardando interação."));
+
+            uiPlayPause.addEventListener('click', () => {
+                if (audioPlayer.paused) {
+                    audioPlayer.play();
+                    uiPlayPause.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                    uiDisc.classList.add('playing');
+                } else {
+                    audioPlayer.pause();
+                    uiPlayPause.innerHTML = '<i class="fa-solid fa-play"></i>';
+                    uiDisc.classList.remove('playing');
+                }
+            });
+
+            document.getElementById('ui-next').addEventListener('click', () => {
+                loadTrack((currentTrackIndex + 1) % playlist.length); audioPlayer.play();
+            });
+
+            document.getElementById('ui-prev').addEventListener('click', () => {
+                loadTrack((currentTrackIndex - 1 + playlist.length) % playlist.length); audioPlayer.play();
+            });
+
+            audioPlayer.addEventListener('timeupdate', () => {
+                if (!isNaN(audioPlayer.duration)) {
+                    const pct = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+                    uiProgressFill.style.width = `${pct}%`;
+                }
+            });
+        }
+
+        document.getElementById('audio-upload').addEventListener('change', function(e) {
+            const files = e.target.files;
+            if(files.length > 0) {
+                const newTrack = { title: files[0].name.replace(/\.[^/.]+$/, ""), artist: "Mídia Local", src: URL.createObjectURL(files[0]) };
+                playlist.push(newTrack); loadTrack(playlist.length - 1); audioPlayer.play();
+            }
+        });
+
+        const CHARS = { 
+            'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
+            'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'
+        };
+        
+        const INITIAL_BOARD = [
+            ['r','n','b','q','k','b','n','r'], ['p','p','p','p','p','p','p','p'],
+            ['','','','','','','',''], ['','','','','','','',''],
+            ['','','','','','','',''], ['','','','','','','',''],
+            ['P','P','P','P','P','P','P','P'], ['R','N','B','Q','K','B','N','R']
+        ];
+
+        function isWhite(p) { return p && p === p.toUpperCase(); }
+        function isBlack(p) { return p && p === p.toLowerCase(); }
+        function inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
+        function cloneBoard(b) { return b.map(row => [...row]); }
+
+        function getRawMoves(board, row, col) {
+            const piece = board[row][col]; if (!piece) return [];
+            const type = piece.toUpperCase();
+            const color = isWhite(piece) ? 'white' : 'black';
+            const moves = [];
+
+            if (type === 'P') {
+                const dir = color === 'white' ? -1 : 1;
+                const start = color === 'white' ? 6 : 1;
+                if (inBounds(row + dir, col) && board[row + dir][col] === '') {
+                    moves.push({ row: row + dir, col });
+                    if (row === start && board[row + 2 * dir][col] === '') moves.push({ row: row + 2 * dir, col });
+                }
+                for (const dc of [-1, 1]) {
+                    if (inBounds(row + dir, col + dc) && board[row + dir][col + dc] !== '') {
+                        if (color === 'white' ? isBlack(board[row + dir][col + dc]) : isWhite(board[row + dir][col + dc])) moves.push({ row: row + dir, col: col + dc });
+                    }
+                }
+            } else if (type === 'N') {
+                const offsets = [[-2,-1], [-2,1], [-1,-2], [-1,2], [1,-2], [1,2], [2,-1], [2,1]];
+                for (const [dr, dc] of offsets) {
+                    if (inBounds(row + dr, col + dc)) {
+                        const t = board[row + dr][col + dc];
+                        if (t === '' || (color === 'white' ? isBlack(t) : isWhite(t))) moves.push({ row: row + dr, col: col + dc });
+                    }
+                }
+            } else if (type === 'B' || type === 'R' || type === 'Q') {
+                const dirs = [];
+                if (type === 'B' || type === 'Q') dirs.push([-1,-1], [-1,1], [1,-1], [1,1]);
+                if (type === 'R' || type === 'Q') dirs.push([-1,0], [1,0], [0,-1], [0,1]);
+                for (const [dr, dc] of dirs) {
+                    let r = row + dr, c = col + dc;
+                    while (inBounds(r, c)) {
+                        const t = board[r][c];
+                        if (t === '') { moves.push({ row: r, col: c }); }
+                        else {
+                            if (color === 'white' ? isBlack(t) : isWhite(t)) moves.push({ row: r, col: c });
+                            break;
+                        }
+                        r += dr; c += dc;
+                    }
+                }
+            } else if (type === 'K') {
+                const offsets = [[-1,-1], [-1,0], [-1,1], [0,-1], [0,1], [1,-1], [1,0], [1,1]];
+                for (const [dr, dc] of offsets) {
+                    if (inBounds(row + dr, col + dc)) {
+                        const t = board[row + dr][col + dc];
+                        if (t === '' || (color === 'white' ? isBlack(t) : isWhite(t))) moves.push({ row: row + dr, col: col + dc });
+                    }
+                }
+            }
+            return moves;
+        }
+
+        function isKingInCheck(board, color) {
+            let kr = -1, kc = -1; const kChar = color === 'white' ? 'K' : 'k';
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) { if (board[r][c] === kChar) { kr = r; kc = c; break; } }
+            }
+            if (kr === -1) return true;
+            const opponent = color === 'white' ? 'black' : 'white';
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const p = board[r][c]; if (!p) continue;
+                    if (opponent === 'white' ? isWhite(p) : isBlack(p)) {
+                        if (getRawMoves(board, r, c).some(m => m.row === kr && m.col === kc)) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function getLegalMoves(board, row, col) {
+            const piece = board[row][col]; if (!piece) return [];
+            const color = isWhite(piece) ? 'white' : 'black';
+            return getRawMoves(board, row, col).filter(move => {
+                const sBoard = cloneBoard(board); sBoard[move.row][move.col] = sBoard[row][col]; sBoard[row][col] = '';
+                return !isKingInCheck(sBoard, color);
+            });
+        }
+
+        function hasLegalMoves(board, color) {
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const p = board[r][c]; if (!p) continue;
+                    if (color === 'white' ? isWhite(p) : isBlack(p)) {
+                        if (getLegalMoves(board, r, c).length > 0) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function triggerEndGame(condition) {
+            gameOver = true; clearInterval(clockInterval);
+            const overlay = document.getElementById('game-overlay');
+            const resBox = document.getElementById('result-box');
+            const title = document.getElementById('result-title');
+            const desc = document.getElementById('result-desc');
+            overlay.style.display = 'flex';
+            if(condition === 'win') { resBox.className = "modal-result win"; title.textContent = 'Vitória!'; desc.textContent = `Fim de jogo. O vencedor foi consagrado.`; } 
+            else if (condition === 'lose') { resBox.className = "modal-result lose"; title.textContent = 'Derrota'; desc.textContent = `Xeque-mate aplicado com sucesso.`; }
+            else { resBox.className = "modal-result"; title.textContent = 'Empate'; desc.textContent = "Partida empatada por falta de movimentos válidos."; }
+        }
+
+        function makeMove(board, fromRow, fromCol, toRow, toCol) {
+            const piece = board[fromRow][fromCol];
+            board[toRow][toCol] = piece; board[fromRow][fromCol] = '';
+            if (piece === 'P' && toRow === 0) board[toRow][toCol] = 'Q';
+            if (piece === 'p' && toRow === 7) board[toRow][toCol] = 'q';
+            lastMoveTracker = { from: { row: fromRow, col: fromCol }, to: { row: toRow, col: toCol } }; activeHint = null;
+        }
+
+        const EVAL_PIECES = { 'p': -10, 'n': -30, 'b': -30, 'r': -50, 'q': -90, 'k': -9000, 'P': 10, 'N': 30, 'B': 30, 'R': 50, 'Q': 90, 'K': 9000 };
+        function evaluateBoard(b) {
+            let score = 0;
+            for (let r=0; r<8; r++) {
+                for (let c=0; c<8; c++) { const p = b[r][c]; if (p) score += EVAL_PIECES[p]; }
+            }
+            return score;
+        }
+
+        function minimax(b, depth, alpha, beta, isMaximizing) {
+            if (depth === 0) return evaluateBoard(b);
+            let moves = [];
+            for (let r=0; r<8; r++) {
+                for (let c=0; c<8; c++) {
+                    if (isMaximizing ? isWhite(b[r][c]) : isBlack(b[r][c])) { getLegalMoves(b, r, c).forEach(m => moves.push({ from: {r,c}, to: m })); }
+                }
+            }
+            if (moves.length === 0) return isMaximizing ? -100000 : 100000;
+
+            if (isMaximizing) {
+                let maxEval = -Infinity;
+                for (const m of moves) {
+                    const nB = cloneBoard(b); nB[m.to.row][m.to.col] = nB[m.from.r][m.from.c]; nB[m.from.r][m.from.c] = '';
+                    maxEval = Math.max(maxEval, minimax(nB, depth-1, alpha, beta, false));
+                    alpha = Math.max(alpha, maxEval); if (beta <= alpha) break;
+                }
+                return maxEval;
+            } else {
+                let minEval = Infinity;
+                for (const m of moves) {
+                    const nB = cloneBoard(b); nB[m.to.row][m.to.col] = nB[m.from.r][m.from.c]; nB[m.from.r][m.from.c] = '';
+                    minEval = Math.min(minEval, minimax(nB, depth-1, alpha, beta, true));
+                    beta = Math.min(beta, minEval); if (beta <= alpha) break;
+                }
+                return minEval;
+            }
+        }
+
+        function getBestMove(b, color) {
+            let moves = []; const isMax = (color === 'white');
+            for (let r=0; r<8; r++) {
+                for (let c=0; c<8; c++) {
+                    if (isMax ? isWhite(b[r][c]) : isBlack(b[r][c])) { getLegalMoves(b, r, c).forEach(m => moves.push({ from: {r,c}, to: m })); }
+                }
+            }
+            if (moves.length === 0) return null;
+            let bestMove = null;
+            if (isMax) {
+                let bestVal = -Infinity;
+                for (const m of moves) {
+                    const nB = cloneBoard(b); nB[m.to.row][m.to.col] = nB[m.from.r][m.from.c]; nB[m.from.r][m.from.c] = '';
+                    const val = minimax(nB, 2, -Infinity, Infinity, false);
+                    if (val > bestVal) { bestVal = val; bestMove = m; }
+                }
+            } else {
+                let bestVal = Infinity;
+                for (const m of moves) {
+                    const nB = cloneBoard(b); nB[m.to.row][m.to.col] = nB[m.from.r][m.from.c]; nB[m.from.r][m.from.c] = '';
+                    const val = minimax(nB, 2, -Infinity, Infinity, true);
+                    if (val < bestVal) { bestVal = val; bestMove = m; }
+                }
+            }
+            return bestMove;
+        }
+
+        function makeAIMove() {
+            const choice = getBestMove(board, 'black'); if (!choice) return;
+            makeMove(board, choice.from.r, choice.from.c, choice.to.row, choice.to.col); clearSelection();
+            if (!hasLegalMoves(board, 'white')) { triggerEndGame(isKingInCheck(board, 'white') ? 'lose' : 'draw'); } 
+            else { turn = 'white'; turnIndicator.innerHTML = `<i class="fa-solid fa-circle-dot"></i> ${playerName}`; }
+            render();
+        }
+
+        function formatTime(s) { return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`; }
+        
+        function updateClocksUI() {
+            document.getElementById('clock-white').textContent = `${playerName}: ${formatTime(timerWhite)}`;
+            document.getElementById('clock-black').textContent = `${opponentName}: ${formatTime(timerBlack)}`;
+            document.getElementById('clock-white').className = turn === 'white' ? 'clock-box active' : 'clock-box';
+            document.getElementById('clock-black').className = turn === 'black' ? 'clock-box active' : 'clock-box';
+        }
+
+        function startBlitzTimers() {
+            clearInterval(clockInterval);
+            clockInterval = setInterval(() => {
+                if (gameOver) return;
+                if (turn === 'white') { timerWhite--; if(timerWhite <= 0) triggerEndGame('lose'); } 
+                else { timerBlack--; if(timerBlack <= 0) triggerEndGame('win'); }
+                updateClocksUI();
+            }, 1000);
+        }
+
+        function handleCellClick(row, col) {
+            if (gameOver || ((gameMode === 'ai' || gameMode === 'blitz') && turn === 'black')) return;
+            const piece = board[row][col];
+
+            if (selected) {
+                if (validMoves.some(m => m.row === row && m.col === col)) {
+                    makeMove(board, selected.row, selected.col, row, col); clearSelection();
+                    const nextPlayer = (gameMode === 'ai' || gameMode === 'blitz') ? 'black' : 'white';
+                    if (!hasLegalMoves(board, nextPlayer)) { triggerEndGame(isKingInCheck(board, nextPlayer) ? 'win' : 'draw'); render(); return; }
+
+                    if (gameMode === 'ai' || gameMode === 'blitz') {
+                        turn = 'black'; turnIndicator.innerHTML = `<i class="fa-solid fa-microchip"></i> Engine IA`;
+                        setTimeout(makeAIMove, 250);
+                    } else {
+                        turn = turn === 'white' ? 'black' : 'white';
+                        turnIndicator.innerHTML = turn === 'white' ? `<i class="fa-solid fa-circle-dot"></i> ${playerName}` : `<i class="fa-solid fa-circle"></i> ${opponentName}`;
+                    }
+                    render(); return;
+                }
+            }
+            if (piece && ((turn === 'white' && isWhite(piece)) || (turn === 'black' && isBlack(piece)))) {
+                selected = { row, col }; validMoves = getLegalMoves(board, row, col); render();
+            } else { clearSelection(); render(); }
+        }
+
+        function clearSelection() { selected = null; validMoves = []; }
+
+        function render() {
+            boardEl.innerHTML = '';
+            for (let r=0; r<8; r++) {
+                for (let c=0; c<8; c++) {
+                    const cell = document.createElement('div'); cell.className = `cell ${(r+c)%2===0?'light':'dark'}`;
+                    const p = board[r][c];
+                    if (p) { 
+                        const s = document.createElement('span'); s.textContent = CHARS[p]; 
+                        s.className = isWhite(p) ? 'white-piece' : 'black-piece'; cell.appendChild(s); 
+                    }
+                    if (selected && selected.row === r && selected.col === c) cell.classList.add('selected');
+                    if (validMoves.some(m => m.row === r && m.col === c)) cell.classList.add('valid-move');
+                    if (lastMoveTracker && ((lastMoveTracker.from.row===r && lastMoveTracker.from.col===c) || (lastMoveTracker.to.row===r && lastMoveTracker.to.col===c))) cell.classList.add('last-move');
+                    if (activeHint && ((activeHint.from.r === r && activeHint.from.c === c) || (activeHint.to.row === r && activeHint.to.col === c))) cell.classList.add('hint-cell');
+                    cell.addEventListener('click', () => handleCellClick(r, c)); boardEl.appendChild(cell);
+                }
+            }
+            if(gameMode === 'blitz') updateClocksUI();
+        }
+
+        function resetGame() {
+            board = INITIAL_BOARD.map(row => [...row]); turn = 'white'; gameOver = false;
+            timerWhite = 300; timerBlack = 300; clearInterval(clockInterval);
+            lastMoveTracker = null; activeHint = null; clearSelection();
+            turnIndicator.innerHTML = `<i class="fa-solid fa-circle-dot"></i> ${playerName}`; messageEl.textContent = '';
+            if(gameMode === 'blitz') { blitzClocksEl.style.display = 'flex'; startBlitzTimers(); } else { blitzClocksEl.style.display = 'none'; }
+            render();
+        }
+
+        function requestFullscreenSecure() {
+            const doc = window.document.documentElement;
+            if (doc.requestFullscreen) doc.requestFullscreen();
+            else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
+        }
+
+        function exitFullscreenSecure() {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        }
+
+        document.getElementById('play-btn').addEventListener('click', () => {
+            const nameInput1 = document.getElementById('player-name-input').value.trim();
+            const nameInput2 = document.getElementById('opponent-name-input').value.trim();
+            
+            if(nameInput1) playerName = nameInput1;
+            
+            if(gameMode === 'pvp') {
+                opponentName = nameInput2 ? nameInput2 : "Jogador 2";
+            } else {
+                opponentName = "Engine IA";
+            }
+            
+            try { requestFullscreenSecure(); } catch(e) {}
+
+            loadTrack(0); initAudioControls();
+            document.getElementById('global-player').style.display = 'grid';
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('app-container').style.display = 'flex';
+            resetGame();
+        });
+
+        document.getElementById('exit-app-btn').addEventListener('click', () => {
+            audioPlayer.pause(); clearInterval(clockInterval);
+            try { exitFullscreenSecure(); } catch(e){}
+            document.getElementById('global-player').style.display = 'none';
+            document.getElementById('app-container').style.display = 'none';
+            document.getElementById('start-screen').style.display = 'flex';
+        });
+
+        document.getElementById('hint-btn').addEventListener('click', () => {
+            if (gameOver || turn === 'black') return;
+            const hint = getBestMove(board, turn); if (hint) { activeHint = hint; render(); }
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', resetGame);
+
+        const printBtn = document.getElementById('print-mode-btn');
+        const exitPrintBtn = document.getElementById('exit-print-btn');
+
+        printBtn.addEventListener('click', () => { document.body.classList.add('print-mode-active'); });
+        exitPrintBtn.addEventListener('click', () => { document.body.classList.remove('print-mode-active'); render(); });
+        document.getElementById('close-overlay-btn').addEventListener('click', () => {
+            document.getElementById('game-overlay').style.display = 'none'; resetGame();
+        });
+    })();
+</script>
+</body>
+</html>
